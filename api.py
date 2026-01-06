@@ -25,6 +25,7 @@ EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 DB_DIR = os.getenv("DB_DIR", "./db")
 DATA_DIR_LEGACY = os.getenv("DATA_DIR_LEGACY", "data/legacy")
 DATA_DIR_DIGITAL = os.getenv("DATA_DIR_DIGITAL", "data/digital")
+LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
 embedding = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 db = Chroma(persist_directory=DB_DIR, embedding_function=embedding)
@@ -87,7 +88,7 @@ def query(body: QueryIn):
 class AnswerIn(BaseModel):
     query: str
     k: int = 5
-    model: str = "gpt-4o-mini"
+    model: str = LLM_MODEL
 
 @app.post("/answer")
 def answer(body: AnswerIn):
