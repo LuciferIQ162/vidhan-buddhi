@@ -3,6 +3,8 @@ langchain-community>=0.2.0
 langchain-text-splitters>=0.2.0
 chromadb>=0.4.22
 sentence-transformers>=2.2.2
+fastapi>=0.115.0
+uvicorn>=0.32.0
 streamlit
 langchain
 langchain-community
@@ -10,4 +12,3 @@ chromadb
 sentence-transformers
 pypdf
 pillow
-
