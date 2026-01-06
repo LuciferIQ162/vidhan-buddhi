@@ -1,11 +1,16 @@
 from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
+from langchain_openai import ChatOpenAI
+from dotenv import load_dotenv
 import os
+
+load_dotenv()
 
 app = FastAPI()
 app.add_middleware(
@@ -16,8 +21,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-db = Chroma(persist_directory="./db", embedding_function=embedding)
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+DB_DIR = os.getenv("DB_DIR", "./db")
+DATA_DIR_LEGACY = os.getenv("DATA_DIR_LEGACY", "data/legacy")
+DATA_DIR_DIGITAL = os.getenv("DATA_DIR_DIGITAL", "data/digital")
+
+embedding = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+db = Chroma(persist_directory=DB_DIR, embedding_function=embedding)
 
 class QueryIn(BaseModel):
     query: str
@@ -48,7 +58,7 @@ def query_get():
 @app.post("/ingest")
 def ingest():
     documents = []
-    for base in ["data/legacy", "data/digital"]:
+    for base in [DATA_DIR_LEGACY, DATA_DIR_DIGITAL]:
         if os.path.isdir(base):
             for file in os.listdir(base):
                 if file.endswith(".txt"):
@@ -72,4 +82,25 @@ def query(body: QueryIn):
             }
             for r in results
         ]
+    }
+
+class AnswerIn(BaseModel):
+    query: str
+    k: int = 5
+    model: str = "gpt-4o-mini"
+
+@app.post("/answer")
+def answer(body: AnswerIn):
+    key = os.getenv("OPENAI_API_KEY")
+    if not key:
+        raise HTTPException(status_code=400, detail="OPENAI_API_KEY not set")
+    results = db.similarity_search(body.query, k=body.k)
+    context = "\n\n".join([r.page_content for r in results])
+    llm = ChatOpenAI(api_key=key, model=body.model, temperature=0)
+    prompt = f"Use the provided context to answer the query.\n\nContext:\n{context}\n\nQuery:\n{body.query}\n\nAnswer with citations where possible."
+    resp = llm.invoke(prompt)
+    return {
+        "answer": resp.content,
+        "used_chunks": len(results),
+        "model": body.model,
     }
